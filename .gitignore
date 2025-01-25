@@ -24,3 +24,9 @@ web-ext.config.ts
 *.njsproj
 *.sln
 *.sw?
+
+# history files
+.history
+
+# env files
+.env
