@@ -1,28 +1,58 @@
-import { useState } from 'react';
+// hooks/useChat.ts
+import { useState, useEffect } from 'react';
 import { Message } from '@/lib/types';
+import { ChatService } from '@/lib/chat';
+import { storage } from '@/lib/storage';
 
 export const useChat = () => {
-    const [messages, setMessages] = useState<Message[]>([
-        { id: '1', content: "Hi! How can I help you with this website?", isBot: true }
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [pageContent, setPageContent] = useState<any>(null);
+    const chatService = ChatService.getInstance();
+
+    useEffect(() => {
+        // Get page content
+        chrome.runtime.sendMessage({ type: 'GET_CONTENT' }, (content) => {
+            setPageContent(content);
+        });
+
+        // Get settings
+        storage.getSettings().then(settings => {
+            chatService.setConfig(settings.model, settings.apiKey);
+        });
+    }, []);
 
     const sendMessage = async (content: string) => {
-        // Add user message
         const userMessage: Message = { id: Date.now().toString(), content, isBot: false };
         setMessages(prev => [...prev, userMessage]);
         setIsLoading(true);
 
         try {
-            // TODO: Add actual API call
-            const botMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                content: "I'll help you with that!",
-                isBot: true
-            };
-            setMessages(prev => [...prev, botMessage]);
+            const context = pageContent ?
+                `Title: ${pageContent.title}\nURL: ${pageContent.url}\nDescription: ${pageContent.description}\nContent: ${pageContent.text}` :
+                "No webpage content available";
+
+            const response = await chatService.sendMessage(content, context);
+
+            if (response.error) throw new Error(response.error);
+
+            setMessages(prev => [
+                ...prev,
+                {
+                    id: (Date.now() + 1).toString(),
+                    content: response.content,
+                    isBot: true
+                }
+            ]);
         } catch (error) {
-            console.error('Failed to send message:', error);
+            setMessages(prev => [
+                ...prev,
+                {
+                    id: Date.now().toString(),
+                    content: "Sorry, something went wrong. Please try again.",
+                    isBot: true
+                }
+            ]);
         } finally {
             setIsLoading(false);
         }
