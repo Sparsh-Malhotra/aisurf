@@ -1,29 +1,32 @@
-// hooks/useChat.ts
-import { useState, useEffect } from 'react';
-import { Message } from '@/lib/types';
+import { useState } from 'react';
+import { Message, PageContent, ChatResponse } from '@/lib/types';
 import { ChatService } from '@/lib/chat';
-import { storage } from '@/lib/storage';
 
 export const useChat = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [pageContent, setPageContent] = useState<any>(null);
-    const chatService = ChatService.getInstance();
+    const [pageContent, setPageContent] = useState<PageContent | null>(null);
+    const [chatService, setChatService] = useState<ChatService | null>(null);
 
     useEffect(() => {
-        // Get page content
-        chrome.runtime.sendMessage({ type: 'GET_CONTENT' }, (content) => {
-            setPageContent(content);
-        });
-
-        // Get settings
-        storage.getSettings().then(settings => {
-            chatService.setConfig(settings.model, settings.apiKey);
-        });
+        ChatService.getInstance().then(setChatService);
     }, []);
 
-    const sendMessage = async (content: string) => {
-        const userMessage: Message = { id: Date.now().toString(), content, isBot: false };
+    const initializeChat = async (content: PageContent) => {
+        setPageContent(content);
+        setMessages([{
+            id: Date.now().toString(),
+            content: "Hi! I've analyzed this webpage. What would you like to know?",
+            isBot: true
+        }]);
+    };
+
+    const sendMessage = async (content: string): Promise<void> => {
+        const userMessage: Message = {
+            id: Date.now().toString(),
+            content,
+            isBot: false
+        };
         setMessages(prev => [...prev, userMessage]);
         setIsLoading(true);
 
@@ -32,31 +35,28 @@ export const useChat = () => {
                 `Title: ${pageContent.title}\nURL: ${pageContent.url}\nDescription: ${pageContent.description}\nContent: ${pageContent.text}` :
                 "No webpage content available";
 
-            const response = await chatService.sendMessage(content, context);
-
+            const response: ChatResponse = await chatService!.sendMessage(content, context);
             if (response.error) throw new Error(response.error);
 
-            setMessages(prev => [
-                ...prev,
-                {
-                    id: (Date.now() + 1).toString(),
-                    content: response.content,
-                    isBot: true
-                }
-            ]);
+            const botMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                content: response.content,
+                isBot: true
+            };
+
+            setMessages(prev => [...prev, botMessage]);
         } catch (error) {
-            setMessages(prev => [
-                ...prev,
-                {
-                    id: Date.now().toString(),
-                    content: "Sorry, something went wrong. Please try again.",
-                    isBot: true
-                }
-            ]);
+            console.log(error);
+            const errorMessage: Message = {
+                id: Date.now().toString(),
+                content: `Sorry, something went wrong. Please try again.`,
+                isBot: true
+            };
+            setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
     };
 
-    return { messages, isLoading, sendMessage };
+    return { messages, isLoading, sendMessage, initializeChat };
 };

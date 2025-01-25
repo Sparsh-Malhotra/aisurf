@@ -13,3 +13,15 @@ export interface Settings {
     apiKey: string;
     model: string;
 }
+
+export interface PageContent {
+    title: string;
+    url: string;
+    text: string;
+    description: string;
+}
+
+export interface ChatResponse {
+    content: string;
+    error?: string;
+}

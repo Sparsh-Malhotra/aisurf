@@ -1,18 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import {X} from 'lucide-react';
-import {storage} from '@/lib/storage';
-import {Settings as SettingsType} from '@/lib/types.ts'
+import React, { useState, useEffect, memo } from 'react';
+import { X } from 'lucide-react';
+import { storage } from '@/lib/storage';
+import {ChatService} from "@/lib/chat.ts";
 
 interface SettingsPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    onSave: () => void;
 }
 
-export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
-    const [settings, setSettings] = useState<SettingsType>({
+interface ModelOption {
+    id: string;
+    name: string;
+    provider: string;
+}
+
+const MODEL_OPTIONS: ModelOption[] = [
+    { id: 'gemini-pro', name: 'Gemini Pro', provider: 'google' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5', provider: 'openai' },
+];
+
+export const SettingsPanel = memo(({ isOpen, onClose, onSave }: SettingsPanelProps) => {
+    const [settings, setSettings] = useState<{ apiKey: string; model: string }>({
         apiKey: '',
-        model: 'gpt-3.5-turbo'
+        model: 'gemini-pro'
     });
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -20,8 +33,23 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
         }
     }, [isOpen]);
 
+    const handleSave = async () => {
+        try {
+            setIsSaving(true);
+            await storage.saveSettings(settings);
+            await ChatService.updateInstance();
+            onSave();
+        } catch (error) {
+            console.error('Failed to save settings:', error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
     return (
-        <div className={`absolute inset-0 bg-white z-50 ${isOpen ? 'block' : 'hidden'}`}>
+        <div className="absolute inset-0 bg-white z-50">
             <div className="flex justify-between items-center p-4 border-b">
                 <h2 className="text-lg font-semibold">Settings</h2>
                 <button
@@ -40,9 +68,11 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                         onChange={(e) => setSettings(prev => ({ ...prev, model: e.target.value }))}
                         className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                        <option value="gemini-pro">Gemini Pro</option>
-                        <option value="claude-3">Claude 3</option>
+                        {MODEL_OPTIONS.map(option => (
+                            <option key={option.id} value={option.id}>
+                                {option.name}
+                            </option>
+                        ))}
                     </select>
                 </div>
 
@@ -58,15 +88,13 @@ export const SettingsPanel = ({ isOpen, onClose }: SettingsPanelProps) => {
                 </div>
 
                 <button
-                    onClick={async () => {
-                        await storage.saveSettings(settings);
-                        onClose();
-                    }}
-                    className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50"
                 >
-                    Save Settings
+                    {isSaving ? 'Saving...' : 'Save Settings'}
                 </button>
             </div>
         </div>
     );
-};
+});

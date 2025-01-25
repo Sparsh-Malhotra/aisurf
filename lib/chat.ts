@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import {storage} from "@/lib/storage.ts";
 
 interface ChatResponse {
     content: string;
@@ -7,35 +8,35 @@ interface ChatResponse {
 
 export class ChatService {
     private static instance: ChatService;
-    private model: string;
-    private apiKey: string;
+    private model: string = '';
+    private apiKey: string = '';
 
-    private constructor() {
-        this.model = '';
-        this.apiKey = '';
-    }
+    private constructor() {}
 
-    static getInstance() {
+    static async getInstance() {
         if (!ChatService.instance) {
             ChatService.instance = new ChatService();
+            await this.updateInstance();
         }
         return ChatService.instance;
     }
 
-    setConfig(model: string, apiKey: string) {
+    private setConfig(model: string, apiKey: string) {
         this.model = model;
         this.apiKey = apiKey;
+    }
+
+    static async updateInstance() {
+        const settings = await storage.getSettings();
+        ChatService.instance.setConfig(settings.model, settings.apiKey);
     }
 
     async sendMessage(message: string, context: string): Promise<ChatResponse> {
         try {
             switch (this.model) {
-                case 'gemini-pro':
-                    return await this.sendGeminiMessage(message, context);
-                case 'gpt-3.5-turbo':
-                    return await this.sendOpenAIMessage(message, context);
-                default:
-                    throw new Error('Unsupported model');
+                case 'gemini-pro': return await this.sendGeminiMessage(message, context);
+                case 'gpt-3.5-turbo': return await this.sendOpenAIMessage(message, context);
+                default: throw new Error('Unsupported model');
             }
         } catch (error) {
             return { content: '', error: 'Failed to send message' };
@@ -45,11 +46,8 @@ export class ChatService {
     private async sendGeminiMessage(message: string, context: string): Promise<ChatResponse> {
         const genAI = new GoogleGenerativeAI(this.apiKey);
         const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-
-        const prompt = `Context: ${context}\nUser: ${message}`;
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        return { content: response.text() };
+        const result = await model.generateContent(`Context: ${context}\nUser: ${message}`);
+        return { content: result.response.text() };
     }
 
     private async sendOpenAIMessage(message: string, context: string): Promise<ChatResponse> {
@@ -67,7 +65,6 @@ export class ChatService {
                 ]
             })
         });
-
         const data = await response.json();
         return { content: data.choices[0].message.content };
     }

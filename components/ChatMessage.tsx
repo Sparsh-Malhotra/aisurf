@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Bot, User } from 'lucide-react';
 
 interface ChatMessageProps {
@@ -6,7 +6,7 @@ interface ChatMessageProps {
     isBot?: boolean;
 }
 
-export const ChatMessage = ({ content, isBot = false }: ChatMessageProps) => {
+export const ChatMessage = memo(({ content, isBot = false }: ChatMessageProps) => {
     return (
         <div className={`flex gap-3 ${isBot ? 'flex-row' : 'flex-row-reverse'}`}>
             <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
@@ -26,4 +26,4 @@ export const ChatMessage = ({ content, isBot = false }: ChatMessageProps) => {
             </div>
         </div>
     );
-};
+});
